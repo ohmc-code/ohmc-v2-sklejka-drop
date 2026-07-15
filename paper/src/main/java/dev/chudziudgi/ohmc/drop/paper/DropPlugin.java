@@ -17,8 +17,6 @@ import dev.chudziudgi.ohmc.drop.paper.config.ConfigService;
 import dev.chudziudgi.ohmc.drop.paper.config.impl.PluginMessages;
 import dev.chudziudgi.ohmc.drop.paper.database.DatabaseConfig;
 import dev.chudziudgi.ohmc.drop.paper.database.DatabaseManager;
-import dev.chudziudgi.ohmc.drop.paper.feature.crafting.CraftingService;
-import dev.chudziudgi.ohmc.drop.paper.feature.crafting.config.CraftingConfig;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.DropCommand;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.DropService;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.config.DropConfig;
@@ -28,6 +26,16 @@ import dev.chudziudgi.ohmc.drop.paper.feature.drop.database.DropTable;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.inventory.DropInventory;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.listener.DropBlockBreakListener;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.listener.DropConnectionListener;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.CraftingController;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.CraftingService;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.command.CraftingAdminCommand;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.command.CraftingCommand;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.configuration.CraftingConfiguration;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.configuration.CraftingInventoryConfiguration;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.configuration.CraftingMessages;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.inventory.CraftingCreatorInventory;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.inventory.RecipeCraftingInventory;
+import dev.chudziudgi.ohmc.drop.paper.multification.CraftingMultification;
 import dev.chudziudgi.ohmc.drop.paper.litecommands.NoticeHandler;
 import dev.chudziudgi.ohmc.drop.paper.litecommands.PermissionHandler;
 import dev.chudziudgi.ohmc.drop.paper.litecommands.UsageHandler;
@@ -71,7 +79,6 @@ public class DropPlugin extends JavaPlugin {
         PluginMessages messages = this.configService.create(PluginMessages.class, new File(dataFolder, "messages.yml"));
         DropConfig dropConfig = this.configService.create(DropConfig.class, new File(dataFolder, "drop.yml"));
         DropInventoryConfiguration dropInventoryConfiguration = this.configService.create(DropInventoryConfiguration.class, new File(dataFolder, "drop-menu.yml"));
-        CraftingConfig craftingConfig = this.configService.create(CraftingConfig.class, new File(dataFolder, "crafting.yml"));
         DatabaseConfig databaseConfig = this.configService.create(DatabaseConfig.class, new File(dataFolder, "database.yml"));
 
         LobbyMultification multification = new LobbyMultification(messages);
@@ -94,14 +101,19 @@ public class DropPlugin extends JavaPlugin {
         DropService dropService = new DropService(dropConfig, dropRepository, multification);
         DropInventory dropInventory = new DropInventory(dropInventoryConfiguration, dropService, multification);
 
-        CraftingService craftingService = new CraftingService(craftingConfig, this, logger);
-        craftingService.registerRecipes();
-
         server.getOnlinePlayers().forEach(player -> dropService.loadPlayer(player.getUniqueId()));
+
+        CraftingConfiguration craftingConfiguration = this.configService.create(CraftingConfiguration.class, new File(dataFolder, "crafting.yml"));
+        CraftingInventoryConfiguration craftingInventoryConfiguration = this.configService.create(CraftingInventoryConfiguration.class, new File(dataFolder, "crafting-menu.yml"));
+        CraftingMessages craftingMessages = this.configService.create(CraftingMessages.class, new File(dataFolder, "crafting-messages.yml"));
+
+        CraftingMultification craftingMultification = new CraftingMultification(craftingMessages);
+        CraftingService craftingService = new CraftingService(craftingConfiguration, craftingInventoryConfiguration, craftingMessages, craftingMultification, this);
+        RecipeCraftingInventory recipeCraftingInventory = new RecipeCraftingInventory(craftingService, craftingInventoryConfiguration);
+        CraftingCreatorInventory craftingCreatorInventory = new CraftingCreatorInventory(craftingService, craftingInventoryConfiguration);
 
         this.reloadManager = new ReloadManager(logger);
         this.reloadManager.register(this.configService);
-        this.reloadManager.register(craftingService);
 
         this.liteCommands = LiteBukkitFactory.builder("ohmc-drop", this, server).extension(new LiteAdventureExtension<>(), extension -> extension.serializer(MINI_MESSAGE))
                 .missingPermission(new PermissionHandler(multification)).invalidUsage(new UsageHandler(multification)).result(Notice.class, new NoticeHandler(multification))
@@ -110,13 +122,16 @@ public class DropPlugin extends JavaPlugin {
                 .message(LiteBukkitMessages.PLAYER_NOT_FOUND, input -> messages.playerNotFound)
                 .commands(
                         new DropCommand(dropInventory),
+                        new CraftingCommand(recipeCraftingInventory),
+                        new CraftingAdminCommand(craftingService, craftingCreatorInventory),
                         new ReloadCommand(this.reloadManager, messages)
                 )
                 .build();
 
         this.registerListeners(
                 new DropBlockBreakListener(dropService),
-                new DropConnectionListener(dropService)
+                new DropConnectionListener(dropService),
+                new CraftingController(craftingService, this)
         );
     }
 

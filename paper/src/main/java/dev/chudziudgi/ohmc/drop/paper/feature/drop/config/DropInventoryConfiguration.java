@@ -17,7 +17,8 @@ public class DropInventoryConfiguration extends OkaeriConfig {
             "# # - item tapety (wypełni puste miejsca)",
             "# < - przycisk poprzedniej strony",
             "# > - przycisk następnej strony",
-            "# c - przycisk zamknięcia"
+            "# c - przycisk zamknięcia",
+            "# o - przycisk ON/OFF dropu bruku (cobblestone + cobbled deepslate)"
     })
     public List<String> structure = List.of(
             "#########",
@@ -25,7 +26,7 @@ public class DropInventoryConfiguration extends OkaeriConfig {
             "#xxxxxxx#",
             "#xxxxxxx#",
             "#xxxxxxx#",
-            "#<##c##>#"
+            "#<##c##>o"
     );
 
     @Comment("# Wygląd przedmiotu gdy drop jest WŁĄCZONY. Placeholdery: {ITEM}, {CHANCE}, {MIN}, {MAX}")
@@ -50,6 +51,35 @@ public class DropInventoryConfiguration extends OkaeriConfig {
                     "",
                     "<red>Drop jest WYŁĄCZONY",
                     "<gray>Kliknij aby <green>włączyć</green> drop"
+            ),
+            List.of()
+    );
+
+    @Comment("# Nazwa dropu pokazywana w wiadomości po kliknięciu przycisku ON/OFF w rogu")
+    public String stoneToggleDisplayName = "<gray>bruk</gray>";
+
+    @Comment("# Przycisk ON/OFF (róg menu) gdy drop bruku jest WŁĄCZONY")
+    public CustomItem stoneToggleOn = new CustomItem(
+            Material.COBBLESTONE,
+            "<green>✔ Drop bruku: WŁĄCZONY",
+            List.of(
+                    "<gray>Dotyczy: <white>cobblestone i cobbled deepslate",
+                    "",
+                    "<green>Drop jest WŁĄCZONY",
+                    "<gray>Kliknij aby <red>wyłączyć</red>"
+            ),
+            List.of()
+    );
+
+    @Comment("# Przycisk ON/OFF (róg menu) gdy drop bruku jest WYŁĄCZONY")
+    public CustomItem stoneToggleOff = new CustomItem(
+            Material.COBBLESTONE,
+            "<red>✘ Drop bruku: WYŁĄCZONY",
+            List.of(
+                    "<gray>Dotyczy: <white>cobblestone i cobbled deepslate",
+                    "",
+                    "<red>Drop jest WYŁĄCZONY",
+                    "<gray>Kliknij aby <green>włączyć</green>"
             ),
             List.of()
     );

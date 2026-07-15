@@ -18,6 +18,9 @@ public class DropDataSerializer implements ObjectSerializer<DropData> {
 
     @Override
     public void serialize(DropData data, SerializationData serializationData, GenericsDeclaration generics) {
+        if (data.sourceBlock != null) {
+            serializationData.add("sourceBlock", data.sourceBlock, Material.class);
+        }
         serializationData.add("dropItem", data.dropItem, Material.class);
         serializationData.add("minAmount", data.minAmount);
         serializationData.add("maxAmount", data.maxAmount);
@@ -31,6 +34,7 @@ public class DropDataSerializer implements ObjectSerializer<DropData> {
 
     @Override
     public DropData deserialize(DeserializationData data, GenericsDeclaration generics) {
+        Material sourceBlock = data.containsKey("sourceBlock") ? data.get("sourceBlock", Material.class) : null;
         Material dropItem = data.get("dropItem", Material.class);
         int minAmount = data.get("minAmount", Integer.class);
         int maxAmount = data.get("maxAmount", Integer.class);
@@ -41,6 +45,6 @@ public class DropDataSerializer implements ObjectSerializer<DropData> {
         List<String> lore = data.containsKey("lore") ? data.getAsList("lore", String.class) : new ArrayList<>();
         List<String> itemModel = data.containsKey("itemModel") ? data.getAsList("itemModel", String.class) : new ArrayList<>();
 
-        return new DropData(dropItem, minAmount, maxAmount, chance, minExp, maxExp, displayName, lore, itemModel);
+        return new DropData(sourceBlock, dropItem, minAmount, maxAmount, chance, minExp, maxExp, displayName, lore, itemModel);
     }
 }

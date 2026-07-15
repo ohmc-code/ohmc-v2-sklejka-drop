@@ -1,98 +1,247 @@
 package dev.chudziudgi.ohmc.drop.paper.feature.crafting;
 
-import dev.chudziudgi.ohmc.drop.paper.feature.crafting.config.CraftingConfig;
-import dev.chudziudgi.ohmc.drop.paper.reload.Reloadable;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.configuration.CraftingConfiguration;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.configuration.CraftingInventoryConfiguration;
+import dev.chudziudgi.ohmc.drop.paper.feature.crafting.configuration.CraftingMessages;
+import dev.chudziudgi.ohmc.drop.paper.multification.CraftingMultification;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.plugin.Plugin;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
-public class CraftingService implements Reloadable {
+public class CraftingService {
 
-    private final CraftingConfig configuration;
+    private final CraftingConfiguration configuration;
+    private final CraftingInventoryConfiguration inventoryConfiguration;
+    private final CraftingMessages messages;
+    private final CraftingMultification multification;
     private final Plugin plugin;
-    private final Logger logger;
 
-    private final List<NamespacedKey> registeredKeys = new ArrayList<>();
-
-    public CraftingService(CraftingConfig configuration, Plugin plugin, Logger logger) {
+    public CraftingService(
+            CraftingConfiguration configuration,
+            CraftingInventoryConfiguration inventoryConfiguration,
+            CraftingMessages messages,
+            CraftingMultification multification,
+            Plugin plugin
+    ) {
         this.configuration = configuration;
+        this.inventoryConfiguration = inventoryConfiguration;
+        this.messages = messages;
+        this.multification = multification;
         this.plugin = plugin;
-        this.logger = logger;
+        this.registerRecipes();
     }
 
-    public void registerRecipes() {
-        int index = 0;
-        for (CraftingConfig.CraftingRecipe recipe : this.configuration.recipes) {
-            NamespacedKey key = new NamespacedKey(this.plugin, "custom_recipe_" + index++);
+    public void addRecipe(CustomRecipe recipe) {
+        this.configuration.recipes.add(recipe);
+        this.configuration.save();
+        this.registerRecipes();
+    }
 
-            if (!recipe.enabled) {
+    public boolean removeRecipe(String name) {
+        boolean removed = this.configuration.recipes.removeIf(r -> r.name().equalsIgnoreCase(name));
+        if (removed) {
+            this.configuration.save();
+            this.registerRecipes();
+        }
+        return removed;
+    }
+
+    public CustomRecipe findRecipe(String name) {
+        return this.configuration.recipes.stream()
+                .filter(r -> r.name().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public CraftingMultification getMultification() {
+        return this.multification;
+    }
+
+    public Plugin getPlugin() {
+        return this.plugin;
+    }
+
+    public boolean hasIngredients(Player player, CustomRecipe recipe) {
+        PlayerInventory inventory = player.getInventory();
+        Map<ItemStack, Integer> requiredItems = new HashMap<>();
+
+        for (ItemStack ingredient : recipe.ingredients().values()) {
+            if (ingredient == null) {
                 continue;
             }
-            if (recipe.result == null || recipe.result.getType() == Material.AIR) {
-                this.logger.warning("Pomijam recepturę '" + recipe.name() + "' - brak przedmiotu wynikowego (result).");
-                continue;
+
+            boolean found = false;
+            for (Map.Entry<ItemStack, Integer> entry : requiredItems.entrySet()) {
+                if (entry.getKey().isSimilar(ingredient)) {
+                    entry.setValue(entry.getValue() + ingredient.getAmount());
+                    found = true;
+                    break;
+                }
             }
-            if (recipe.shape == null || recipe.shape.isEmpty()) {
-                this.logger.warning("Pomijam recepturę '" + recipe.name() + "' - brak kształtu (shape).");
-                continue;
+
+            if (!found) {
+                requiredItems.put(ingredient.clone(), ingredient.getAmount());
+            }
+        }
+
+        for (Map.Entry<ItemStack, Integer> entry : requiredItems.entrySet()) {
+            ItemStack item = entry.getKey();
+            int required = entry.getValue();
+            int found = 0;
+
+            for (ItemStack invItem : inventory.getContents()) {
+                if (invItem != null && invItem.isSimilar(item)) {
+                    found += invItem.getAmount();
+                }
             }
 
-            try {
-                ShapedRecipe shapedRecipe = new ShapedRecipe(key, recipe.result.clone());
-                shapedRecipe.shape(recipe.shape.toArray(new String[0]));
+            if (found < required) {
+                return false;
+            }
+        }
 
-                Set<Character> usedSymbols = recipe.shape.stream()
-                        .flatMap(row -> row.chars().mapToObj(c -> (char) c))
-                        .filter(c -> c != ' ')
-                        .collect(Collectors.toSet());
+        return true;
+    }
 
-                boolean missingIngredient = false;
-                for (Character symbol : usedSymbols) {
-                    Material material = recipe.ingredients.get(String.valueOf(symbol));
-                    if (material == null) {
-                        this.logger.warning("Pomijam recepturę '" + recipe.name() + "' - brak składnika dla symbolu '" + symbol + "'.");
-                        missingIngredient = true;
+    public boolean craft(Player player, CustomRecipe recipe) {
+        if (!this.hasIngredients(player, recipe)) {
+            this.multification.create()
+                    .viewer(player)
+                    .notice(messages -> messages.missingIngredients)
+                    .send();
+            return false;
+        }
+
+        PlayerInventory inventory = player.getInventory();
+        if (inventory.firstEmpty() == -1) {
+
+            boolean hasSpace = false;
+            for (ItemStack item : inventory.getContents()) {
+                if (item != null && item.isSimilar(recipe.result())) {
+                    if (item.getAmount() + recipe.result().getAmount() <= item.getMaxStackSize()) {
+                        hasSpace = true;
                         break;
                     }
-                    shapedRecipe.setIngredient(symbol, material);
                 }
+            }
 
-                if (missingIngredient) {
-                    continue;
+            if (!hasSpace) {
+                this.multification.create()
+                        .viewer(player)
+                        .notice(messages -> messages.noSpace)
+                        .send();
+                return false;
+            }
+        }
+
+        Map<ItemStack, Integer> requiredItems = new HashMap<>();
+        for (ItemStack ingredient : recipe.ingredients().values()) {
+            if (ingredient == null) {
+                continue;
+            }
+
+            boolean found = false;
+            for (Map.Entry<ItemStack, Integer> entry : requiredItems.entrySet()) {
+                if (entry.getKey().isSimilar(ingredient)) {
+                    entry.setValue(entry.getValue() + ingredient.getAmount());
+                    found = true;
+                    break;
                 }
+            }
+
+            if (!found) {
+                requiredItems.put(ingredient.clone(), ingredient.getAmount());
+            }
+        }
+
+        for (Map.Entry<ItemStack, Integer> entry : requiredItems.entrySet()) {
+            ItemStack item = entry.getKey();
+            int toRemove = entry.getValue();
+
+            ItemStack[] contents = inventory.getContents();
+            for (int i = 0; i < contents.length; i++) {
+                ItemStack invItem = contents[i];
+                if (invItem != null && invItem.isSimilar(item)) {
+                    if (invItem.getAmount() > toRemove) {
+                        invItem.setAmount(invItem.getAmount() - toRemove);
+                        inventory.setItem(i, invItem);
+                        toRemove = 0;
+                        break;
+                    } else {
+                        toRemove -= invItem.getAmount();
+                        inventory.setItem(i, null);
+                        if (toRemove <= 0) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        inventory.addItem(recipe.result().clone());
+
+        this.multification.create()
+                .viewer(player)
+                .notice(messages -> messages.craftingSuccess)
+                .send();
+
+        return true;
+    }
+
+    public CraftingConfiguration getConfiguration() {
+        return configuration;
+    }
+
+    public CraftingInventoryConfiguration getInventoryConfiguration() {
+        return inventoryConfiguration;
+    }
+
+    public CraftingMessages getMessages() {
+        return messages;
+    }
+
+
+    public void registerRecipes() {
+
+        for (int i = 0; i < this.configuration.recipes.size(); i++) {
+            CustomRecipe recipe = this.configuration.recipes.get(i);
+
+            try {
+                NamespacedKey key = new NamespacedKey(plugin, "custom_recipe_" + i);
 
                 Bukkit.removeRecipe(key);
-                Bukkit.addRecipe(shapedRecipe);
-                this.registeredKeys.add(key);
-            }
-            catch (Exception exception) {
-                this.logger.warning("Nie można zarejestrować receptury '" + recipe.name() + "': " + exception.getMessage());
+
+                ShapedRecipe shapedRecipe = new ShapedRecipe(key, recipe.result().clone());
+
+                shapedRecipe.shape("ABC", "DEF", "GHI");
+
+                char[] slots = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'};
+                boolean hasIngredients = false;
+
+                for (int slot = 0; slot < 9; slot++) {
+                    ItemStack ingredient = recipe.ingredients().get(slot);
+
+                    if (ingredient != null && ingredient.getType() != org.bukkit.Material.AIR) {
+                        shapedRecipe.setIngredient(slots[slot], ingredient.getType());
+                        hasIngredients = true;
+                    } else {
+                        shapedRecipe.setIngredient(slots[slot], org.bukkit.Material.AIR);
+                    }
+                }
+
+                if (hasIngredients) {
+                    Bukkit.addRecipe(shapedRecipe);
+                }
+
+            } catch (Exception e) {
+                plugin.getLogger().warning("Nie można zarejestrować receptury: " + recipe.name() + " - " + e.getMessage());
             }
         }
-
-        Bukkit.getServer().updateRecipes();
-    }
-
-    public void unregisterRecipes() {
-        for (NamespacedKey key : this.registeredKeys) {
-            Bukkit.removeRecipe(key);
-        }
-        this.registeredKeys.clear();
-    }
-
-    @Override
-    public void reload() {
-        this.unregisterRecipes();
-        this.registerRecipes();
     }
 }

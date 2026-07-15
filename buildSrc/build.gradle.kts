@@ -8,9 +8,9 @@ repositories {
 }
 
 dependencies {
-    implementation("com.gradleup.shadow:shadow-gradle-plugin:8.3.6")
-    implementation("net.minecrell:plugin-yml:0.6.0")
-    implementation("xyz.jpenilla:run-task:2.3.1")
+    implementation("com.gradleup.shadow:shadow-gradle-plugin:9.5.1")
+    implementation("de.eldoria.plugin-yml.paper:de.eldoria.plugin-yml.paper.gradle.plugin:0.9.0")
+    implementation("xyz.jpenilla:run-task:3.0.2")
 }
 
 sourceSets {

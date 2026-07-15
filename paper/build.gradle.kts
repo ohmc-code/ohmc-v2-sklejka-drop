@@ -1,11 +1,10 @@
 import net.minecrell.pluginyml.bukkit.BukkitPluginDescription
-import net.minecrell.pluginyml.paper.PaperPluginDescription
 
 plugins {
     `profile-java`
     `profile-repositories`
 
-    id("net.minecrell.plugin-yml.paper")
+    id("de.eldoria.plugin-yml.paper")
     id("com.gradleup.shadow")
     id("xyz.jpenilla.run-paper")
 }
@@ -46,7 +45,7 @@ tasks.test {
 
 paper {
     main = "dev.chudziudgi.ohmc.drop.paper.DropPlugin"
-    apiVersion = "1.21"
+    apiVersion = "26.1.2"
     prefix = "ohmc-drop"
     authors = listOf("Chudziudgi")
     description = "Pozdro Kerl cipeczko spłakana"
@@ -62,7 +61,7 @@ paper {
 }
 
 tasks.runServer {
-    minecraftVersion("1.21.8")
+    minecraftVersion("26.1.2")
 }
 
 tasks.shadowJar {

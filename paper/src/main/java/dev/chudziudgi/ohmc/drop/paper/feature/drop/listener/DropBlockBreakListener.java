@@ -21,6 +21,12 @@ public class DropBlockBreakListener implements Listener {
         Player player = event.getPlayer();
         Material block = event.getBlock().getType();
 
+        if (this.service.disableAllOreDrops() && this.service.isOre(block)) {
+            event.setDropItems(false);
+            event.setExpToDrop(0);
+            return;
+        }
+
         if (!this.service.isSourceBlock(block)) {
             return;
         }

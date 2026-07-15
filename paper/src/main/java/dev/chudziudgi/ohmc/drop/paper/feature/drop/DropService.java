@@ -26,10 +26,23 @@ public class DropService {
 
     private final Map<UUID, Set<Material>> disabledCache = new ConcurrentHashMap<>();
 
+    private final Set<Material> ores = buildOreSet();
+
     public DropService(DropConfig config, DropRepository repository, LobbyMultification multification) {
         this.config = config;
         this.repository = repository;
         this.multification = multification;
+    }
+
+    private static Set<Material> buildOreSet() {
+        Set<Material> set = EnumSet.noneOf(Material.class);
+        for (Material material : Material.values()) {
+            if (material.isBlock() && material.name().endsWith("_ORE")) {
+                set.add(material);
+            }
+        }
+        set.add(Material.ANCIENT_DEBRIS);
+        return set;
     }
 
     public void loadPlayer(UUID playerUuid) {
@@ -51,6 +64,45 @@ public class DropService {
 
     public boolean removeNaturalDrops() {
         return this.config.removeNaturalDrops;
+    }
+
+    public boolean disableAllOreDrops() {
+        return this.config.disableAllOreDrops;
+    }
+
+    public boolean isOre(Material block) {
+        return this.ores.contains(block);
+    }
+
+    public List<Material> stoneToggleItems() {
+        return this.config.stoneToggleItems;
+    }
+
+    public boolean isStoneDropEnabled(UUID playerUuid) {
+        Set<Material> disabled = this.disabledCache.get(playerUuid);
+        if (disabled == null) {
+            return true;
+        }
+        return this.config.stoneToggleItems.stream().noneMatch(disabled::contains);
+    }
+
+    public boolean toggleStoneDrop(UUID playerUuid) {
+        Set<Material> disabled = this.disabledCache.computeIfAbsent(playerUuid, key -> EnumSet.noneOf(Material.class));
+
+        boolean currentlyEnabled = this.config.stoneToggleItems.stream().noneMatch(disabled::contains);
+        boolean nowEnabled;
+        if (currentlyEnabled) {
+            disabled.addAll(this.config.stoneToggleItems);
+            nowEnabled = false;
+        } else {
+            this.config.stoneToggleItems.forEach(disabled::remove);
+            nowEnabled = true;
+        }
+
+        Set<Material> snapshot = disabled.isEmpty() ? EnumSet.noneOf(Material.class) : EnumSet.copyOf(disabled);
+        this.repository.setDisabled(playerUuid, snapshot);
+
+        return nowEnabled;
     }
 
     public boolean isEnabled(UUID playerUuid, Material dropItem) {
@@ -89,6 +141,9 @@ public class DropService {
             if (data.dropItem == null) {
                 continue;
             }
+            if (!data.appliesTo(block)) {
+                continue;
+            }
             if (!this.isEnabled(player.getUniqueId(), data.dropItem)) {
                 continue;
             }
@@ -102,12 +157,15 @@ public class DropService {
             if (amount > 0) {
                 PlayerItemUtil.giveItem(player, new ItemStack(data.dropItem, amount));
 
-                this.multification.create()
-                        .viewer(player)
-                        .notice(messages -> messages.dropReceived)
-                        .placeholder("{ITEM}", data.displayName())
-                        .placeholder("{AMOUNT}", String.valueOf(amount))
-                        .send();
+                // Bruk i bruk z głębi lecą non-stop przy kopaniu - nie spamujemy wiadomością.
+                if (!this.config.stoneToggleItems.contains(data.dropItem)) {
+                    this.multification.create()
+                            .viewer(player)
+                            .notice(messages -> messages.dropReceived)
+                            .placeholder("{ITEM}", data.displayName())
+                            .placeholder("{AMOUNT}", String.valueOf(amount))
+                            .send();
+                }
             }
 
             int exp = randomBetween(random, data.minExp, data.maxExp);

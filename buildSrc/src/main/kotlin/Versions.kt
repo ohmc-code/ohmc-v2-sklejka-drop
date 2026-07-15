@@ -1,5 +1,5 @@
 object Versions {
-    const val PAPER_API = "1.21.8-R0.1-SNAPSHOT"
+    const val PAPER_API = "26.1.2.build.74-stable"
 
     const val OKAERI_CONFIGS = "5.0.5"
 
@@ -13,7 +13,7 @@ object Versions {
 
     const val JACKSON_BUKKIT = "1.4.0"
 
-    const val INV_UI = "2.0.0-alpha.21"
+    const val INV_UI = "2.1.1"
 
     const val PLACEHOLDER_API = "2.11.6"
 

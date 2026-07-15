@@ -4,9 +4,11 @@ import dev.chudziudgi.ohmc.drop.paper.feature.drop.DropService;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.config.DropInventoryConfiguration;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.inventory.item.DropCloseItem;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.inventory.item.DropNavigationPageItem;
+import dev.chudziudgi.ohmc.drop.paper.feature.drop.inventory.item.DropStoneToggleItem;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.inventory.item.DropToggleItem;
 import dev.chudziudgi.ohmc.drop.paper.feature.drop.inventory.item.DropWallpaperItem;
 import dev.chudziudgi.ohmc.drop.paper.multification.LobbyMultification;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import xyz.xenondevs.invui.gui.Markers;
@@ -33,8 +35,10 @@ public class DropInventory {
     }
 
     public void open(Player player) {
+        List<Material> stoneToggleItems = this.service.stoneToggleItems();
         List<Item> toggleItems = this.service.drops().stream()
                 .filter(data -> data.dropItem != null)
+                .filter(data -> !stoneToggleItems.contains(data.dropItem))
                 .map(data -> new DropToggleItem(this.configuration, this.service, this.multification, data))
                 .collect(Collectors.toList());
 
@@ -43,6 +47,7 @@ public class DropInventory {
         structure.addIngredient('<', DropNavigationPageItem.createNavigationItem(this.configuration, DropNavigationPageItem.NavigationType.PREVIOUS));
         structure.addIngredient('>', DropNavigationPageItem.createNavigationItem(this.configuration, DropNavigationPageItem.NavigationType.NEXT));
         structure.addIngredient('c', new DropCloseItem(this.configuration));
+        structure.addIngredient('o', new DropStoneToggleItem(this.configuration, this.service, this.multification));
         structure.addIngredient('#', new DropWallpaperItem(this.configuration));
 
         PagedGui<@NotNull Item> gui = PagedGui.itemsBuilder()
